@@ -80,12 +80,20 @@ public class RTMZAnalyzerWindow extends Stage {
 
     colorButton.setOnAction(e -> {
       SwingUtilities.invokeLater(() -> {
-        InterpolatingLookupPaintScaleSetupDialog colorDialog =
-            new InterpolatingLookupPaintScaleSetupDialog(null, plot.getPaintScale());
-        colorDialog.setVisible(true);
 
-        if (colorDialog.getExitCode() == ExitCode.OK)
-          plot.setPaintScale(colorDialog.getPaintScale());
+        Platform.runLater(new Runnable() {
+          @Override
+          public void run() {
+            InterpolatingLookupPaintScaleSetupDialogController colorDialog =
+                    new InterpolatingLookupPaintScaleSetupDialogController(null, plot.getPaintScale());
+            colorDialog.show();
+
+
+            if (colorDialog.getExitCode() == ExitCode.OK)
+              plot.setPaintScale(colorDialog.getPaintScale());
+          }
+        });
+
       });
     });
 
