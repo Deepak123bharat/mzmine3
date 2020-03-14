@@ -21,14 +21,15 @@ package io.github.mzmine.util.interpolatinglookuppaintscale;
 import java.awt.*;
 import java.io.IOException;
 import java.net.URL;
+import java.text.NumberFormat;
 import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.TreeMap;
 import java.util.logging.Logger;
-
-
 import io.github.mzmine.main.MZmineCore;
+
 import io.github.mzmine.util.ExitCode;
+
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -45,6 +46,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import org.apache.poi.ss.formula.functions.T;
 
 public class InterpolatingLookupPaintScaleSetupDialogController extends Stage implements Initializable {
 
@@ -61,6 +63,10 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
 
     private static Scene mainScene;
 
+    private InterpolatingLookupPaintScale paintScale;
+
+    private final ObservableList<InterpolatingLookupPaintScaleSetupDialogTableModel> obTableList = FXCollections.observableArrayList();
+
 
 
 
@@ -76,7 +82,7 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
 
 
     public InterpolatingLookupPaintScaleSetupDialogController(Object parent,
-                                                    InterpolatingLookupPaintScale paintScale) {
+                                                              InterpolatingLookupPaintScale paintScale) {
 
 
         Double[] lookupValues = paintScale.getLookupValues();
@@ -85,7 +91,7 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
             lookupTable.put(lookupValue, color);
         }
 
-
+        this.paintScale = paintScale;
         logger.info("cunstroctor of dialog");
 
 
@@ -152,28 +158,33 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
     @FXML
     private TableView<InterpolatingLookupPaintScaleSetupDialogTableModel> tableLookupValues;
 
+    @FXML
+    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, String> Value;
 
-    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, Double> value;
+    @FXML
+    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, String> Color;
 
-
-    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, javafx.scene.paint.Color> color;
+    private final NumberFormat percentFormat = NumberFormat.getPercentInstance();
 
 
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
 
-        logger.info("initilize_of_controller");
+        logger.info("initialize_of_controller");
         tableModel = new InterpolatingLookupPaintScaleSetupDialogTableModel(lookupTable);
 
-        tableLookupValues.getItems().addAll(tableModel);
-        value = new TableColumn<>("value");
-        value.setCellValueFactory(new PropertyValueFactory<>("value"));
-        color = new TableColumn<>("color");
-        color.setCellValueFactory(new PropertyValueFactory<>("color"));
-        tableLookupValues.getColumns().addAll(value,color);
 
-        //tableLookupValues.setItems(getdata(tableModel));
+        obTableList.add(tableModel);
+        //Color.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getColumnName(1)));
+
+        logger.info(obTableList.size()+" size of oblist");
+        logger.info(tableModel.getRowCount()+" row count");
+        logger.info(obTableList + " string of array");
+
+        Value.setCellValueFactory(new PropertyValueFactory<>("Value"));
+
+        tableLookupValues.setItems(obTableList);
     }
 
     public void actionPerformed(ActionEvent event) {
@@ -220,9 +231,4 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
         return paintScale;
     }
 
-    private ObservableList<InterpolatingLookupPaintScaleSetupDialogTableModel> getdata(InterpolatingLookupPaintScaleSetupDialogTableModel tModel) {
-        ObservableList<InterpolatingLookupPaintScaleSetupDialogTableModel> tm = FXCollections.observableArrayList(tModel);
-        tm.add(tModel);
-        return tm;
-    }
 }
