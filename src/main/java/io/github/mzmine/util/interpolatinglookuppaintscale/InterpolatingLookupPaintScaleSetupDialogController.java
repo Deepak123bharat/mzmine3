@@ -159,10 +159,10 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
     private TableView<InterpolatingLookupPaintScaleSetupDialogTableModel> tableLookupValues;
 
     @FXML
-    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, String> Value;
+    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, Double> Value;
 
     @FXML
-    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, String> Color;
+    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, javafx.scene.paint.Color> Color;
 
     private final NumberFormat percentFormat = NumberFormat.getPercentInstance();
 
@@ -176,7 +176,6 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
 
 
         obTableList.add(tableModel);
-        //Color.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getColumnName(1)));
 
         logger.info(obTableList.size()+" size of oblist");
         logger.info(tableModel.getRowCount()+" row count");
