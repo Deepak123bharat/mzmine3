@@ -21,15 +21,16 @@ package io.github.mzmine.util.interpolatinglookuppaintscale;
 import java.awt.*;
 import java.io.IOException;
 import java.net.URL;
-import java.text.NumberFormat;
-import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.TreeMap;
 import java.util.logging.Logger;
+
 import io.github.mzmine.main.MZmineCore;
 
+import io.github.mzmine.taskcontrol.TaskStatus;
 import io.github.mzmine.util.ExitCode;
 
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -43,10 +44,11 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import org.apache.poi.ss.formula.functions.T;
+import javafx.util.Callback;
+
+import static org.openscience.jmol.app.webexport.WebExport.dispose;
 
 public class InterpolatingLookupPaintScaleSetupDialogController extends Stage implements Initializable {
 
@@ -59,16 +61,13 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
 
     private Logger logger = Logger.getLogger(this.getClass().getName());
 
-    private static InterpolatingLookupPaintScaleSetupDialogTableModel tableModel;
-
     private static Scene mainScene;
 
-    private InterpolatingLookupPaintScale paintScale;
+    private ExitCode exitCode = ExitCode.CANCEL;
 
-    private final ObservableList<InterpolatingLookupPaintScaleSetupDialogTableModel> obTableList = FXCollections.observableArrayList();
+    private javafx.scene.paint.Color bColor;
 
-
-
+    private static ObservableList<InterpolatingLookupPaintScaleRow> obTableList = FXCollections.observableArrayList();
 
 
     // Load the window FXML
@@ -85,17 +84,15 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
                                                               InterpolatingLookupPaintScale paintScale) {
 
 
+
         Double[] lookupValues = paintScale.getLookupValues();
         for (Double lookupValue : lookupValues) {
             Color color = (Color) paintScale.getPaint(lookupValue);
+            InterpolatingLookupPaintScaleRow ir = new InterpolatingLookupPaintScaleRow(lookupValue,color);
+            obTableList.add(ir);
             lookupTable.put(lookupValue, color);
         }
 
-        this.paintScale = paintScale;
-        logger.info("cunstroctor of dialog");
-
-
-        //load fxml
         try {
             Parent root = loader.load();
             mainScene  = new Scene(root);
@@ -113,12 +110,7 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
 
     }
 
-
-    private ExitCode exitCode = ExitCode.CANCEL;
-
     // Load the window FXML
-
-
     @FXML
     private AnchorPane main;
 
@@ -136,6 +128,9 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
 
     @FXML
     private Button buttonColor;
+
+    @FXML
+    private ColorPicker cp;
 
     @FXML
     private Button buttonAddModify;
@@ -156,42 +151,80 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
     private ScrollPane scrollpaneLookupValues;
 
     @FXML
-    private TableView<InterpolatingLookupPaintScaleSetupDialogTableModel> tableLookupValues;
+    private TableView<InterpolatingLookupPaintScaleRow> tableLookupValues;
 
     @FXML
-    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, Double> Value;
+    private TableColumn<InterpolatingLookupPaintScaleRow, Double> Value;
 
     @FXML
-    private TableColumn<InterpolatingLookupPaintScaleSetupDialogTableModel, javafx.scene.paint.Color> Color;
-
-    private final NumberFormat percentFormat = NumberFormat.getPercentInstance();
-
+    private TableColumn<InterpolatingLookupPaintScaleRow, Color> Color;
 
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
 
         logger.info("initialize_of_controller");
-        tableModel = new InterpolatingLookupPaintScaleSetupDialogTableModel(lookupTable);
+
+        Callback factory = new Callback<TableColumn<InterpolatingLookupPaintScaleRow, Color>, TableCell<InterpolatingLookupPaintScaleRow, Color>>() {
+
+            private int columns = tableLookupValues.getColumns().size();
+
+            @Override
+            public TableCell<InterpolatingLookupPaintScaleRow, Color> call(TableColumn<InterpolatingLookupPaintScaleRow, Color> param) {
+                return new TableCell<InterpolatingLookupPaintScaleRow, Color>() {
+                    @Override
+                    protected void updateItem(Color item, boolean empty) {
+                        super.updateItem(item, empty);
+
+                        // assign item's toString value as text
+                        if (empty || item == null) {
+                            setText(null);
+                        } else {
+                            setText(item.toString());
+
+                                int r = item.getRed();
+                                int g = item.getGreen();
+                                int b = item.getBlue();
+                                String hex = String.format("#%02x%02x%02x", r, g, b);
+                                this.setStyle("-fx-background-color: " + hex + ";");
+
+                        }
+                    }
+
+                };
+            }
+
+        };
 
 
-        obTableList.add(tableModel);
+        Value.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getKey()));
+        Color.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getValue()));
+        Color.setCellFactory(factory);
+
+
+
+
+
 
         logger.info(obTableList.size()+" size of oblist");
-        logger.info(tableModel.getRowCount()+" row count");
-        logger.info(obTableList + " string of array");
-
-        Value.setCellValueFactory(new PropertyValueFactory<>("Value"));
+        logger.info(obTableList.toString() + " string of array");
 
         tableLookupValues.setItems(obTableList);
+
+        //Value.setCellValueFactory(new PropertyValueFactory<>("Value"));
+
+        //
     }
 
     public void actionPerformed(ActionEvent event) {
         Object src = event.getSource();
 
 
-        if (src == buttonColor) {
+        if (src == cp) {
             logger.info("select color is called");
+            javafx.scene.paint.Color color = cp.getValue();
+            bColor = color;
+            logger.info(bColor.toString()+" color of background Hello");
         }
 
         if (src == buttonAddModify) {
@@ -201,20 +234,37 @@ public class InterpolatingLookupPaintScaleSetupDialogController extends Stage im
                 return;
             }
 
+            Double d = Double.parseDouble(fieldValue.getText());
+
+            java.awt.Color awtColor = new java.awt.Color((float) bColor.getRed(),
+                    (float) bColor.getGreen(),
+                    (float) bColor.getBlue(),
+                    (float) bColor.getOpacity());
+
+            lookupTable.put(d, awtColor);
+            InterpolatingLookupPaintScaleRow ir = new InterpolatingLookupPaintScaleRow(d,awtColor);
+            obTableList.add(ir);
             scrollpaneLookupValues.requestLayout();
         }
 
         if (src == buttonDelete) {
+            InterpolatingLookupPaintScaleRow selected = tableLookupValues.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                obTableList.remove(selected);
+            }
             logger.info("button delete is pressed");
+            scrollpaneLookupValues.requestLayout();
         }
 
         if (src == buttonOK) {
             exitCode = ExitCode.OK;
             logger.info("ok button pressed");
+            dispose();
         }
         if (src == buttonCancel) {
             exitCode = ExitCode.CANCEL;
-            logger.info("cancle button pressed");
+            logger.info("cancel button pressed");
+            dispose();
         }
     }
 
