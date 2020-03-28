@@ -18,46 +18,128 @@
 
 package io.github.mzmine.util.interpolatinglookuppaintscale;
 
-import javafx.scene.control.cell.TextFieldTableCell;
-import javafx.scene.paint.Color;
+import java.awt.*;
+import java.io.IOException;
+import java.net.URL;
+import java.util.ResourceBundle;
 import java.util.TreeMap;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 
 import io.github.mzmine.main.MZmineCore;
+
+import io.github.mzmine.taskcontrol.TaskStatus;
 import io.github.mzmine.util.ExitCode;
-import io.github.mzmine.util.components.ColorTableCell;
-import io.github.mzmine.util.javafx.FxColorUtil;
+
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
-
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
-import javafx.util.converter.DoubleStringConverter;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import javafx.util.Callback;
 
-public class InterpolatingLookupPaintScaleSetupDialogController{
+import static org.openscience.jmol.app.webexport.WebExport.dispose;
+
+public class InterpolatingLookupPaintScaleSetupDialogController extends Stage implements Initializable {
+
+
+    private static final long serialVersionUID = 1L;
 
     public static final int VALUEFIELD_COLUMNS = 4;
 
+    private static final TreeMap<Double, Color> lookupTable = new TreeMap<Double, Color>();
+
+    private Logger logger = Logger.getLogger(this.getClass().getName());
+
+    private static Scene mainScene;
+
+    private ExitCode exitCode = ExitCode.CANCEL;
+
+    private javafx.scene.paint.Color bColor;
+
+    private static ObservableList<InterpolatingLookupPaintScaleRow> obTableList = FXCollections.observableArrayList();
+
+
+    // Load the window FXML
+    FXMLLoader loader = new FXMLLoader((getClass().getResource("InterpolatingLookupPaintScaleSetupDialog.fxml")));
+
+
+    //default constructor
+    public InterpolatingLookupPaintScaleSetupDialogController(){
+        logger.info("defalut constructor");
+    }
+
+
+    public InterpolatingLookupPaintScaleSetupDialogController(Object parent,
+                                                              InterpolatingLookupPaintScale paintScale) {
+
+
+
+        Double[] lookupValues = paintScale.getLookupValues();
+        for (Double lookupValue : lookupValues) {
+            Color color = (Color) paintScale.getPaint(lookupValue);
+            InterpolatingLookupPaintScaleRow ir = new InterpolatingLookupPaintScaleRow(lookupValue,color);
+            obTableList.add(ir);
+            lookupTable.put(lookupValue, color);
+        }
+
+        try {
+            Parent root = loader.load();
+            mainScene  = new Scene(root);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+
+        logger.info("cunstroctor of second");
+
+
+
+        setScene(mainScene);
+
+    }
+
+    // Load the window FXML
+    @FXML
+    private AnchorPane main;
+
+    @FXML
+    private AnchorPane panelControlsAndList;
+
+    @FXML
+    private AnchorPane panelValueAndColor;
+
+    @FXML
+    private Label labelValue;
 
     @FXML
     private TextField fieldValue;
 
-
+    @FXML
+    private Button buttonColor;
 
     @FXML
-    private ColorPicker colorPicker;
+    private ColorPicker cp;
 
     @FXML
-    private Button buttonAdd;
+    private Button buttonAddModify;
 
     @FXML
     private Button buttonDelete;
+
+    @FXML
+    private AnchorPane panelOKCancelButton;
 
     @FXML
     private Button buttonOK;
@@ -66,164 +148,123 @@ public class InterpolatingLookupPaintScaleSetupDialogController{
     private Button buttonCancel;
 
     @FXML
+    private ScrollPane scrollpaneLookupValues;
+
+    @FXML
     private TableView<InterpolatingLookupPaintScaleRow> tableLookupValues;
 
     @FXML
-    private TableColumn<InterpolatingLookupPaintScaleRow, Double> valueColumn;
+    private TableColumn<InterpolatingLookupPaintScaleRow, Double> Value;
 
     @FXML
-    private TableColumn<InterpolatingLookupPaintScaleRow, Color> colorColumn;
+    private TableColumn<InterpolatingLookupPaintScaleRow, Color> Color;
 
-    @FXML
-    private void initialize() {
 
-        tableLookupValues.setEditable(true);
-        valueColumn.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getKey()));
-        valueColumn.setCellFactory(TextFieldTableCell.forTableColumn(new DoubleStringConverter()));
-        valueColumn.setOnEditCommit(event -> {
-            Double newKey = event.getNewValue();
-            Double oldKey = event.getOldValue();
-            lookupTable.put(newKey,lookupTable.get(oldKey));
-            lookupTable.remove(oldKey);
-            updateOBList(lookupTable);
-        });
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
 
-        colorColumn.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getValue()));
-        colorColumn.setCellFactory(column -> new ColorTableCell<InterpolatingLookupPaintScaleRow>(column));
-        colorColumn.setOnEditCommit(event -> {
-            Color newColor = event.getNewValue();
-            Double key =  event.getRowValue().getKey();
-            lookupTable.put(key,newColor);
-            updateOBList(lookupTable);
-        });
+        logger.info("initialize_of_controller");
 
+        Callback factory = new Callback<TableColumn<InterpolatingLookupPaintScaleRow, Color>, TableCell<InterpolatingLookupPaintScaleRow, Color>>() {
+
+            private int columns = tableLookupValues.getColumns().size();
+
+            @Override
+            public TableCell<InterpolatingLookupPaintScaleRow, Color> call(TableColumn<InterpolatingLookupPaintScaleRow, Color> param) {
+                return new TableCell<InterpolatingLookupPaintScaleRow, Color>() {
+                    @Override
+                    protected void updateItem(Color item, boolean empty) {
+                        super.updateItem(item, empty);
+
+                        // assign item's toString value as text
+                        if (empty || item == null) {
+                            setText(null);
+                        } else {
+                            setText(item.toString());
+
+                                int r = item.getRed();
+                                int g = item.getGreen();
+                                int b = item.getBlue();
+                                String hex = String.format("#%02x%02x%02x", r, g, b);
+                                this.setStyle("-fx-background-color: " + hex + ";");
+
+                        }
+                    }
+
+                };
+            }
+
+        };
+
+
+        Value.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getKey()));
+        Color.setCellValueFactory(cell-> new ReadOnlyObjectWrapper<>(cell.getValue().getValue()));
+        Color.setCellFactory(factory);
+
+
+
+
+
+
+        logger.info(obTableList.size()+" size of oblist");
+        logger.info(obTableList.toString() + " string of array");
+
+        tableLookupValues.setItems(obTableList);
+
+        //Value.setCellValueFactory(new PropertyValueFactory<>("Value"));
+
+        //
     }
-
-    private  TreeMap<Double, Color> lookupTable = new TreeMap<Double, Color>();
-    private Logger logger = Logger.getLogger(this.getClass().getName());
-    private  ExitCode exitCode = ExitCode.CANCEL;
-    private javafx.scene.paint.Color bColor = javafx.scene.paint.Color.WHITE;
-
-
-
-    private final ObservableList<InterpolatingLookupPaintScaleRow> observableTableList = FXCollections.observableArrayList();
-
-    public void addPaintScaleToTableView(InterpolatingLookupPaintScale paintScale){
-
-        observableTableList.clear();
-        lookupTable.clear();
-
-        Double[] lookupValues = paintScale.getLookupValues();
-
-        for (Double lookupValue : lookupValues) {
-            java.awt.Color color =(java.awt.Color) paintScale.getPaint(lookupValue);
-            Color fxColor = FxColorUtil.awtColorToFX(color);
-            lookupTable.put(lookupValue, fxColor);
-        }
-
-        for (Double value : lookupTable.keySet()) {
-            InterpolatingLookupPaintScaleRow ir = new InterpolatingLookupPaintScaleRow(value, lookupTable.get(value));
-            observableTableList.add(ir);
-        }
-
-        tableLookupValues.setItems(observableTableList);
-    }
-
 
     public void actionPerformed(ActionEvent event) {
         Object src = event.getSource();
 
-        if (src == colorPicker) {
-            javafx.scene.paint.Color color = colorPicker.getValue();
+
+        if (src == cp) {
+            logger.info("select color is called");
+            javafx.scene.paint.Color color = cp.getValue();
             bColor = color;
+            logger.info(bColor.toString()+" color of background Hello");
         }
 
-        if (src == buttonAdd) {
-            String tempString = fieldValue.getText();
-
-            if (tempString == null || tempString.isEmpty()) {
+        if (src == buttonAddModify) {
+            logger.info("button addmodify is pressed");
+            if (fieldValue.getText() == null) {
                 MZmineCore.getDesktop().displayMessage("Please enter value first.");
                 return;
             }
-            if (!isDouble(tempString)) {
-                MZmineCore.getDesktop().displayMessage("Value should be double or integral.");
-                return;
-            }
+
             Double d = Double.parseDouble(fieldValue.getText());
 
-            lookupTable.put(d,bColor);
-            updateOBList(lookupTable);
+            java.awt.Color awtColor = new java.awt.Color((float) bColor.getRed(),
+                    (float) bColor.getGreen(),
+                    (float) bColor.getBlue(),
+                    (float) bColor.getOpacity());
+
+            lookupTable.put(d, awtColor);
+            InterpolatingLookupPaintScaleRow ir = new InterpolatingLookupPaintScaleRow(d,awtColor);
+            obTableList.add(ir);
+            scrollpaneLookupValues.requestLayout();
         }
 
         if (src == buttonDelete) {
             InterpolatingLookupPaintScaleRow selected = tableLookupValues.getSelectionModel().getSelectedItem();
             if (selected != null) {
-                observableTableList.remove(selected);
-                lookupTable.remove(selected.getKey());
-
+                obTableList.remove(selected);
             }
+            logger.info("button delete is pressed");
+            scrollpaneLookupValues.requestLayout();
         }
 
         if (src == buttonOK) {
             exitCode = ExitCode.OK;
+            logger.info("ok button pressed");
             dispose();
         }
         if (src == buttonCancel) {
             exitCode = ExitCode.CANCEL;
+            logger.info("cancel button pressed");
             dispose();
-        }
-    }
-    public void refreshColorValue(){
-        for (Double value : lookupTable.keySet()) {
-
-        }
-    }
-
-    public boolean isDouble(String str) {
-        final String Digits     = "(\\p{Digit}+)";
-        final String HexDigits  = "(\\p{XDigit}+)";
-        // an exponent is 'e' or 'E' followed by an optionally
-        // signed decimal integer.
-        final String Exp        = "[eE][+-]?"+Digits;
-        final String fpRegex    =
-                ("[\\x00-\\x20]*"+ // Optional leading "whitespace"
-                        "[+-]?(" +         // Optional sign character
-                        "NaN|" +           // "NaN" string
-                        "Infinity|" +      // "Infinity" string
-
-                        // A decimal floating-point string representing a finite positive
-                        // number without a leading sign has at most five basic pieces:
-                        // Digits . Digits ExponentPart FloatTypeSuffix
-                        //
-                        // Since this method allows integer-only strings as input
-                        // in addition to strings of floating-point literals, the
-                        // two sub-patterns below are simplifications of the grammar
-                        // productions from the Java Language Specification, 2nd
-                        // edition, section 3.10.2.
-
-                        // Digits ._opt Digits_opt ExponentPart_opt FloatTypeSuffix_opt
-                        "((("+Digits+"(\\.)?("+Digits+"?)("+Exp+")?)|"+
-
-                        // . Digits ExponentPart_opt FloatTypeSuffix_opt
-                        "(\\.("+Digits+")("+Exp+")?)|"+
-
-                        // Hexadecimal strings
-                        "((" +
-                        // 0[xX] HexDigits ._opt BinaryExponent FloatTypeSuffix_opt
-                        "(0[xX]" + HexDigits + "(\\.)?)|" +
-
-                        // 0[xX] HexDigits_opt . HexDigits BinaryExponent FloatTypeSuffix_opt
-                        "(0[xX]" + HexDigits + "?(\\.)" + HexDigits + ")" +
-
-                        ")[pP][+-]?" + Digits + "))" +
-                        "[fFdD]?))" +
-                        "[\\x00-\\x20]*");// Optional trailing "whitespace"
-
-        if (Pattern.matches(fpRegex, str)){
-            Double.valueOf(str);
-            return true;
-        } else {
-          return false;
         }
     }
 
@@ -233,28 +274,10 @@ public class InterpolatingLookupPaintScaleSetupDialogController{
 
     public InterpolatingLookupPaintScale getPaintScale() {
         InterpolatingLookupPaintScale paintScale = new InterpolatingLookupPaintScale();
-        lookupTable.clear();
-        for(InterpolatingLookupPaintScaleRow iR : observableTableList){
-            lookupTable.put(iR.getKey(),iR.getValue());
-        }
         for (Double value : lookupTable.keySet()) {
-            Color fxColor = lookupTable.get(value);
-            java.awt.Color awtColor = FxColorUtil.fxColorToAWT(fxColor);
-            paintScale.add(value, awtColor);
+            paintScale.add(value, lookupTable.get(value));
         }
         return paintScale;
-    }
-
-    private void updateOBList(TreeMap<Double, Color> lookupTable){
-        observableTableList.clear();
-        for (Double value : lookupTable.keySet()) {
-            InterpolatingLookupPaintScaleRow ir = new InterpolatingLookupPaintScaleRow(value, lookupTable.get(value));
-            observableTableList.add(ir);
-        }
-    }
-
-    public void dispose() {
-        tableLookupValues.getScene().getWindow().hide();
     }
 
 }
